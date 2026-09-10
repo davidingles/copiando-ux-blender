@@ -1,0 +1,10 @@
+{
+  "name": "Gestión de Fábrica",
+  "short_name": "Fábrica",
+  "description": "Gestión de fábrica con un layout de áreas redimensionables estilo Blender.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#1a1a1a",
+  "theme_color": "#2b2b2b",
+  "lang": "es"
+}

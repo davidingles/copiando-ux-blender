@@ -1,0 +1,9 @@
+{
+  "name": "copiando-ux-blender",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gestión de fábrica con un layout de áreas redimensionables estilo Blender.",
+  "scripts": {
+    "dev": "npx --yes serve frontend"
+  }
+}

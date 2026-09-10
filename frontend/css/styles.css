@@ -1,0 +1,450 @@
+/* ============================================================================
+   styles.css
+   Hoja de estilos con apariencia oscura inspirada en la interfaz de Blender.
+   ============================================================================ */
+
+:root {
+  --fondo-ventana: #1a1a1a;
+  --fondo-barra: #2b2b2b;
+  --fondo-barra-oscura: #1f1f1f;
+  --fondo-area-cabecera: #3b3b3b;
+  --fondo-area-cuerpo: #242424;
+  --color-divisor: #101010;
+  --color-divisor-hover: #4f8cff;
+  --texto-principal: #e6e6e6;
+  --texto-secundario: #9a9a9a;
+  --borde: #0f0f0f;
+  --grosor-divisor: 6px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  background: var(--fondo-ventana);
+  color: var(--texto-principal);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 13px;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ============================================================================
+   Barra superior (workspaces)
+   ============================================================================ */
+
+.barra-superior {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 40px;
+  padding: 0 12px;
+  background: var(--fondo-barra);
+  border-bottom: 1px solid var(--borde);
+  flex-shrink: 0;
+}
+
+.marca {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.marca .logo {
+  font-size: 16px;
+}
+
+.workspaces {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.workspaces::-webkit-scrollbar {
+  display: none;
+}
+
+.pestana-workspace {
+  background: transparent;
+  color: var(--texto-secundario);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 5px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  font: inherit;
+}
+
+.pestana-workspace:hover {
+  background: var(--fondo-area-cabecera);
+  color: var(--texto-principal);
+}
+
+.pestana-workspace.activa {
+  background: var(--fondo-area-cuerpo);
+  color: var(--texto-principal);
+  border-color: var(--borde);
+}
+
+.acciones {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+.boton {
+  background: var(--fondo-area-cabecera);
+  color: var(--texto-principal);
+  border: 1px solid var(--borde);
+  border-radius: 4px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.boton:hover {
+  background: #4a4a4a;
+}
+
+/* ============================================================================
+   Escenario (contenedor del layout de áreas)
+   ============================================================================ */
+
+.escenario {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.division,
+.area {
+  width: 100%;
+  height: 100%;
+}
+
+/* División: reparte el espacio entre dos hijos y un divisor arrastrable. */
+.division {
+  display: flex;
+  position: relative;
+}
+
+.division[data-direccion='fila'] {
+  flex-direction: row;
+}
+
+.division[data-direccion='columna'] {
+  flex-direction: column;
+}
+
+.division-hijo {
+  flex-basis: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Divisor arrastrable entre dos áreas. */
+.divisor {
+  flex: 0 0 var(--grosor-divisor);
+  background: var(--color-divisor);
+  transition: background 0.15s ease;
+}
+
+.division[data-direccion='fila'] .divisor {
+  cursor: col-resize;
+}
+
+.division[data-direccion='columna'] .divisor {
+  cursor: row-resize;
+}
+
+.divisor:hover {
+  background: var(--color-divisor-hover);
+}
+
+/* ============================================================================
+   Área individual
+   ============================================================================ */
+
+.area {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.area-encabezado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 8px;
+  background: var(--fondo-area-cabecera);
+  border-bottom: 1px solid var(--borde);
+  flex-shrink: 0;
+}
+
+.area-titulo {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.selector-editor {
+  margin-left: auto;
+  background: var(--fondo-barra);
+  color: var(--texto-principal);
+  border: 1px solid var(--borde);
+  border-radius: 3px;
+  padding: 2px 4px;
+  max-width: 150px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.boton-menu-area {
+  background: transparent;
+  color: var(--texto-secundario);
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  padding: 2px 6px;
+}
+
+.boton-menu-area:hover {
+  background: #4a4a4a;
+  color: var(--texto-principal);
+}
+
+.area-cuerpo {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--fondo-area-cuerpo);
+}
+
+/* Esquinas para dividir el área (se muestran al pasar el ratón). */
+.esquina {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  cursor: crosshair;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 5;
+}
+
+.area:hover .esquina {
+  opacity: 1;
+}
+
+.esquina::before,
+.esquina::after {
+  content: '';
+  position: absolute;
+  background: var(--texto-secundario);
+}
+
+.esquina::before {
+  width: 9px;
+  height: 2px;
+}
+
+.esquina::after {
+  width: 2px;
+  height: 9px;
+}
+
+.esquina:hover::before,
+.esquina:hover::after {
+  background: var(--color-divisor-hover);
+}
+
+.esquina-tl {
+  top: 0;
+  left: 0;
+}
+
+.esquina-tl::before,
+.esquina-tl::after {
+  top: 0;
+  left: 0;
+}
+
+.esquina-tr {
+  top: 0;
+  right: 0;
+}
+
+.esquina-tr::before,
+.esquina-tr::after {
+  top: 0;
+  right: 0;
+}
+
+.esquina-bl {
+  bottom: 0;
+  left: 0;
+}
+
+.esquina-bl::before,
+.esquina-bl::after {
+  bottom: 0;
+  left: 0;
+}
+
+.esquina-br {
+  bottom: 0;
+  right: 0;
+}
+
+.esquina-br::before,
+.esquina-br::after {
+  bottom: 0;
+  right: 0;
+}
+
+/* Resaltado de vista previa durante el arrastre de una esquina. */
+.area.division-previa {
+  box-shadow: inset 0 0 0 2px var(--color-divisor-hover);
+}
+
+.area.fusion-previa::after,
+.division.fusion-previa::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 107, 107, 0.18);
+  border: 2px solid #ff6b6b;
+  pointer-events: none;
+  z-index: 6;
+}
+
+/* ============================================================================
+   Maqueta de módulo (contenido de cada área)
+   ============================================================================ */
+
+.modulo-maqueta {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  border-top: 3px solid var(--acento, #4f8cff);
+}
+
+.modulo-icono {
+  font-size: 40px;
+  line-height: 1;
+}
+
+.modulo-nombre {
+  margin: 0;
+  font-size: 18px;
+}
+
+.modulo-descripcion {
+  margin: 0;
+  color: var(--texto-secundario);
+  max-width: 320px;
+}
+
+.modulo-campos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
+.campo {
+  background: var(--fondo-barra);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 3px 10px;
+  color: var(--texto-secundario);
+}
+
+.modulo-nota {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: #6f6f6f;
+}
+
+/* ============================================================================
+   Barra de estado
+   ============================================================================ */
+
+.barra-estado {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 26px;
+  padding: 0 12px;
+  background: var(--fondo-barra-oscura);
+  border-top: 1px solid var(--borde);
+  color: var(--texto-secundario);
+  font-size: 11px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.pistas {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============================================================================
+   Menú contextual flotante
+   ============================================================================ */
+
+.menu-contextual {
+  position: fixed;
+  z-index: 1000;
+  min-width: 220px;
+  background: var(--fondo-barra);
+  border: 1px solid var(--borde);
+  border-radius: 4px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  display: none;
+  flex-direction: column;
+  padding: 4px;
+}
+
+.menu-contextual.visible {
+  display: flex;
+}
+
+.menu-item {
+  background: transparent;
+  color: var(--texto-principal);
+  border: none;
+  border-radius: 3px;
+  padding: 7px 10px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.menu-item:hover {
+  background: var(--color-divisor-hover);
+}

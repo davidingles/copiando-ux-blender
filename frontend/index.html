@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2b2b2b" />
+    <meta
+      name="description"
+      content="Gestión de fábrica con un layout de áreas redimensionables estilo Blender."
+    />
+    <title>Gestión de Fábrica · Áreas estilo Blender</title>
+    <link rel="manifest" href="manifest.json" />
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <header class="barra-superior">
+      <div class="marca">
+        <span class="logo">🟦</span>
+        <span class="titulo-app">Gestión de Fábrica</span>
+      </div>
+      <nav class="workspaces" id="workspaces" aria-label="Workspaces"></nav>
+      <div class="acciones">
+        <button type="button" id="boton-restablecer" class="boton">
+          ↺ Restablecer layout
+        </button>
+      </div>
+    </header>
+
+    <main id="escenario" class="escenario"></main>
+
+    <footer class="barra-estado">
+      <span id="texto-estado"></span>
+      <span class="pistas">
+        Esquinas: arrastra hacia dentro para dividir · hacia fuera para unir ·
+        arrastra los bordes para redimensionar
+      </span>
+    </footer>
+
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>
