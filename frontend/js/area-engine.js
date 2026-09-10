@@ -15,7 +15,12 @@
 //   - Persistencia:  el árbol se guarda en localStorage y se restaura al abrir.
 // ============================================================================
 
-import { MODULOS, obtenerModulo, renderizarModulo } from './modules.js';
+import {
+  MODULOS,
+  obtenerModulo,
+  renderizarModulo,
+  htmlTablaParaImprimir,
+} from './modules.js';
 
 // Clave usada para guardar/recuperar el layout en localStorage.
 const CLAVE_ALMACENAMIENTO = 'fabrica-layout-v1';
@@ -528,10 +533,17 @@ export class GestorAreas {
       this.enfocarArea(nodo.id);
     });
 
+    const esExplorador = nodo.editor === 'explorador';
+
     area.innerHTML = `
       <header class="area-encabezado">
         <span class="area-titulo">${modulo.icono} ${modulo.nombre}</span>
         <select class="selector-editor" title="Cambiar módulo del área"></select>
+        ${
+          esExplorador
+            ? ''
+            : '<button type="button" class="boton-imprimir-area" title="Imprimir el contenido de esta área">🖨️</button>'
+        }
         <button type="button" class="boton-menu-area" title="Opciones del área">⋯</button>
       </header>
       <div class="area-cuerpo"></div>
@@ -588,8 +600,18 @@ export class GestorAreas {
         ]);
       });
 
+    // Botón de imprimir: imprime el contenido del área (todas salvo Explorador).
+    if (!esExplorador) {
+      area
+        .querySelector('.boton-imprimir-area')
+        .addEventListener('click', (evento) => {
+          evento.stopPropagation();
+          this.imprimirArea(area, modulo);
+        });
+    }
+
     // Pinta la maqueta del módulo dentro del cuerpo del área.
-    renderizarModulo(nodo.editor, area.querySelector('.area-cuerpo'));
+    renderizarModulo(nodo.editor, area.querySelector('.area-cuerpo'), nodo.id);
 
     // Asigna el comportamiento de arrastre a cada esquina (dividir o fusionar).
     area
@@ -614,6 +636,93 @@ export class GestorAreas {
       });
 
     return area;
+  }
+
+  // Abre una ventana de impresión con el contenido actual del área.
+  imprimirArea(areaEl, modulo) {
+    const cuerpo = areaEl.querySelector('.area-cuerpo');
+    const contenido =
+      htmlTablaParaImprimir(modulo.id) || (cuerpo ? cuerpo.innerHTML : '');
+    const titulo = `${modulo.icono} ${modulo.nombre}`;
+
+    const ventana = window.open('', '_blank', 'width=980,height=700');
+    if (!ventana) {
+      alert('Permite las ventanas emergentes para poder imprimir.');
+      return;
+    }
+
+    ventana.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+        <head>
+          <meta charset="utf-8" />
+          <title>${titulo}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body {
+              margin: 24px;
+              font-family: 'Segoe UI', system-ui, sans-serif;
+              color: #1c1e21;
+              font-size: 12px;
+            }
+            .tabla-modulo { border-top: none; }
+            .tabla-encabezado {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              border-bottom: 2px solid #1c1e21;
+              padding-bottom: 8px;
+              margin-bottom: 12px;
+            }
+            .tabla-titulo { font-size: 15px; font-weight: 700; }
+            .tabla-contador { color: #5c6166; font-size: 11px; }
+            .tabla-scroll { overflow: visible; }
+            table { border-collapse: collapse; width: 100%; }
+            thead th {
+              background: #e4e7ea;
+              color: #1c1e21;
+              text-align: left;
+              font-size: 11px;
+              text-transform: uppercase;
+              letter-spacing: 0.4px;
+              padding: 6px 10px;
+              border-bottom: 1px solid #c5c9cd;
+            }
+            tbody td {
+              padding: 5px 10px;
+              border-bottom: 1px solid #e4e7ea;
+              vertical-align: top;
+            }
+            tbody tr:nth-child(even) { background: #f4f6f8; }
+            .estado {
+              display: inline-block;
+              padding: 1px 8px;
+              border-radius: 10px;
+              font-size: 11px;
+              border: 1px solid;
+            }
+            .estado-ok { color: #1e7a3c; border-color: #b7e4c7; background: #e6f7ec; }
+            .estado-azul { color: #1a5bbf; border-color: #bcd4f5; background: #e8f0fc; }
+            .estado-gris { color: #5c6166; border-color: #c5c9cd; }
+            .estado-naranja { color: #b35c00; border-color: #f3d1b3; background: #fcf0e4; }
+            @media print {
+              body { margin: 10mm; }
+              thead { display: table-header-group; }
+            }
+          </style>
+        </head>
+        <body>
+          ${contenido}
+          <script>
+            window.addEventListener('load', function () {
+              setTimeout(function () { window.print(); }, 80);
+            });
+          </script>
+        </body>
+      </html>
+    `);
+    ventana.document.close();
+    ventana.focus();
   }
 
   construirDivision(nodo) {
