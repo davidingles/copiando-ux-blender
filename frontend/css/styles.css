@@ -15,6 +15,36 @@
   --texto-secundario: #9a9a9a;
   --borde: #0f0f0f;
   --grosor-divisor: 6px;
+
+  --fondo-hover: #4a4a4a;
+  --color-boton-mas: #ffffff;
+  --borde-boton-mas: #8a8a8a;
+  --scrollbar-thumb: #3f3f3f;
+  --scrollbar-thumb-hover: #555555;
+  --nota: #6f6f6f;
+  --primario-hover: #3b74d8;
+}
+
+/* Tema claro: colores claros y blanco. */
+:root[data-tema='claro'] {
+  --fondo-ventana: #f4f6f8;
+  --fondo-barra: #ffffff;
+  --fondo-barra-oscura: #eceef0;
+  --fondo-area-cabecera: #e4e7ea;
+  --fondo-area-cuerpo: #fbfcfd;
+  --color-divisor: #c5c9cd;
+  --color-divisor-hover: #2f6fd8;
+  --texto-principal: #1c1e21;
+  --texto-secundario: #5c6166;
+  --borde: #d3d7db;
+
+  --fondo-hover: #d6dbe0;
+  --color-boton-mas: #1c1e21;
+  --borde-boton-mas: #9aa0a6;
+  --scrollbar-thumb: #c3c8cc;
+  --scrollbar-thumb-hover: #aab0b5;
+  --nota: #7d848b;
+  --primario-hover: #2f6fd8;
 }
 
 * {
@@ -36,6 +66,46 @@ body {
   font-size: 13px;
   overflow: hidden;
   user-select: none;
+}
+
+/* ============================================================================
+   Barras de desplazamiento (oscuras, sutiles y sin flechas)
+   ============================================================================ */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 /* ============================================================================
@@ -115,7 +185,155 @@ body {
 }
 
 .boton:hover {
-  background: #4a4a4a;
+  background: var(--fondo-hover);
+}
+
+.boton-peligro {
+  background: #b3261e;
+  border-color: #d43b32;
+  color: #ffffff;
+}
+
+.boton-peligro:hover {
+  background: #d43b32;
+}
+
+/* Botón oculto (se muestra solo cuando hay un área con foco sin ampliar). */
+.boton[hidden] {
+  display: none;
+}
+
+/* ============================================================================
+   Configuraciones guardadas (junto a la marca)
+   ============================================================================ */
+
+.configuraciones {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.configuraciones::-webkit-scrollbar {
+  display: none;
+}
+
+.pestana-config {
+  background: transparent;
+  color: var(--texto-secundario);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 5px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  font: inherit;
+}
+
+.pestana-config:hover {
+  background: var(--fondo-area-cabecera);
+  color: var(--texto-principal);
+}
+
+.pestana-config.activa {
+  background: var(--fondo-area-cuerpo);
+  color: var(--texto-principal);
+  border-color: var(--borde);
+}
+
+.boton-mas {
+  background: transparent;
+  color: var(--color-boton-mas);
+  border: 1px solid var(--borde-boton-mas);
+  border-radius: 4px;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+.boton-mas:hover {
+  background: var(--color-divisor-hover);
+  color: #ffffff;
+  border-color: var(--color-divisor-hover);
+}
+
+/* ============================================================================
+   Diálogo para guardar una configuración
+   ============================================================================ */
+
+.modal-fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.modal-fondo[hidden] {
+  display: none;
+}
+
+.modal-caja {
+  width: min(380px, calc(100vw - 32px));
+  background: var(--fondo-barra);
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-caja h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.modal-descripcion {
+  margin: 0;
+  color: var(--texto-secundario);
+}
+
+.modal-input {
+  background: var(--fondo-area-cuerpo);
+  color: var(--texto-principal);
+  border: 1px solid var(--borde);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.modal-input:focus {
+  outline: none;
+  border-color: var(--color-divisor-hover);
+}
+
+.modal-botones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.boton-primario {
+  background: var(--color-divisor-hover);
+  border-color: var(--color-divisor-hover);
+  color: #ffffff;
+}
+
+.boton-primario:hover {
+  background: var(--primario-hover);
 }
 
 /* ============================================================================
@@ -185,6 +403,12 @@ body {
   position: relative;
 }
 
+/* Área con el foco (equivalente al área activa de Blender). */
+.area.enfocada .area-encabezado {
+  background: var(--fondo-hover);
+  box-shadow: inset 0 2px 0 var(--color-divisor-hover);
+}
+
 .area-encabezado {
   display: flex;
   align-items: center;
@@ -227,7 +451,7 @@ body {
 }
 
 .boton-menu-area:hover {
-  background: #4a4a4a;
+  background: var(--fondo-hover);
   color: var(--texto-principal);
 }
 
@@ -236,6 +460,7 @@ body {
   min-height: 0;
   overflow: auto;
   background: var(--fondo-area-cuerpo);
+  scrollbar-gutter: stable;
 }
 
 /* Esquinas para dividir el área (se muestran al pasar el ratón). */
@@ -335,6 +560,15 @@ body {
   z-index: 6;
 }
 
+/* Línea de vista previa al dividir un área arrastrando una esquina. */
+.division-previa-linea {
+  position: absolute;
+  z-index: 7;
+  background: var(--color-divisor-hover);
+  pointer-events: none;
+  box-shadow: 0 0 8px rgba(79, 140, 255, 0.55);
+}
+
 /* ============================================================================
    Maqueta de módulo (contenido de cada área)
    ============================================================================ */
@@ -385,7 +619,7 @@ body {
 .modulo-nota {
   margin: 8px 0 0;
   font-size: 11px;
-  color: #6f6f6f;
+  color: var(--nota);
 }
 
 /* ============================================================================

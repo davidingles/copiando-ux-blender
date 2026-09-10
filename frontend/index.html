@@ -18,10 +18,41 @@
         <span class="logo">🟦</span>
         <span class="titulo-app">Gestión de Fábrica</span>
       </div>
+      <nav
+        class="configuraciones"
+        id="configuraciones"
+        aria-label="Configuraciones guardadas"
+      ></nav>
       <nav class="workspaces" id="workspaces" aria-label="Workspaces"></nav>
       <div class="acciones">
+        <button
+          type="button"
+          id="boton-enfocar"
+          class="boton boton-primario"
+          title="Ampliar el área enfocada (Ctrl+Espacio)"
+          hidden
+        >
+          ⛶ Enfocar
+        </button>
+        <button
+          type="button"
+          id="boton-desenfocar"
+          class="boton boton-peligro"
+          title="Volver al layout anterior"
+          hidden
+        >
+          ⤢ Desenfocar
+        </button>
         <button type="button" id="boton-restablecer" class="boton">
           ↺ Restablecer layout
+        </button>
+        <button
+          type="button"
+          id="boton-tema"
+          class="boton"
+          title="Cambiar entre modo oscuro y modo claro"
+        >
+          ☀️
         </button>
       </div>
     </header>
@@ -35,6 +66,41 @@
         arrastra los bordes para redimensionar
       </span>
     </footer>
+
+    <div class="modal-fondo" id="modal-config" hidden>
+      <div
+        class="modal-caja"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="titulo-modal-config"
+      >
+        <h3 id="titulo-modal-config">Guardar configuración</h3>
+        <p class="modal-descripcion">
+          Ponle un nombre a la distribución actual de las áreas para poder
+          volver a ella cuando quieras.
+        </p>
+        <input
+          type="text"
+          id="input-nombre-config"
+          class="modal-input"
+          placeholder="Nombre de la configuración"
+          maxlength="40"
+          autocomplete="off"
+        />
+        <div class="modal-botones">
+          <button type="button" id="boton-cancelar-config" class="boton">
+            Cancelar
+          </button>
+          <button
+            type="button"
+            id="boton-aceptar-config"
+            class="boton boton-primario"
+          >
+            Guardar
+          </button>
+        </div>
+      </div>
+    </div>
 
     <script type="module" src="js/app.js"></script>
   </body>

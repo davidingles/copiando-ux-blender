@@ -149,8 +149,25 @@ export class GestorAreas {
     this.contenedor = contenedor;
     this.arbol = this.cargar() || crearLayoutPrincipal();
     this.alCambiar = opciones.alCambiar || (() => {});
+
+    // Estado del área enfocada (el "área activa" de Blender) y de la vista
+    // maximizada que se alterna con Ctrl+Espacio.
+    this.areaEnfocada = null;
+    this.arbolPrevio = null;
+    this.areaMaximizadaId = null;
+    this.maximizada = false;
+
     this.menu = this.crearMenuContextual();
     this.renderizar();
+
+    // Historial para deshacer (Ctrl+Z) y rehacer (Ctrl+Shift+Z).
+    this.historial = [this.obtenerArbol()];
+    this.indiceHistorial = 0;
+
+    // Elemento de vista previa de la división durante el arrastre de esquinas.
+    this.previewDivision = null;
+
+    this.configurarAtajos();
   }
 
   // Intenta recuperar el layout guardado. Devuelve null si no hay datos válidos.
@@ -172,11 +189,21 @@ export class GestorAreas {
 
   // Guarda el árbol actual en localStorage.
   guardar() {
+    // La vista maximizada es un estado temporal: no se persiste.
+    if (this.maximizada) {
+      return;
+    }
     try {
       localStorage.setItem(CLAVE_ALMACENAMIENTO, JSON.stringify(this.arbol));
     } catch (error) {
       // Si el almacenamiento no está disponible, simplemente se ignora.
     }
+  }
+
+  // Devuelve una copia independiente del árbol actual. Sirve para guardar
+  // configuraciones con nombre sin compartir referencias con el layout vivo.
+  obtenerArbol() {
+    return JSON.parse(JSON.stringify(this.arbol));
   }
 
   // Reconstruye todo el DOM a partir del árbol actual.
@@ -233,29 +260,21 @@ export class GestorAreas {
     return null;
   }
 
-  // Divide un área creando una nueva área adyacente según la esquina arrastrada.
-  // El parámetro ratio (0..1) define cuánto ocupa la primera parte de la división.
-  //   - tl (superior izquierda): nueva área arriba.
-  //   - tr (superior derecha):   nueva área a la derecha.
-  //   - bl (inferior izquierda): nueva área a la izquierda.
-  //   - br (inferior derecha):   nueva área abajo.
-  dividirArea(idArea, esquina, ratio = 0.5) {
+  // Divide un área creando una nueva área adyacente.
+  //   - direccion: FILA (lado a lado) o COLUMNA (arriba/abajo).
+  //   - ratio (0..1): posición del divisor; coincide con lo que ocupa la
+  //     primera parte (izquierda o arriba).
+  //   - nuevaEnPrimera: si la nueva área queda como primera parte.
+  dividirArea(idArea, direccion, ratio = 0.5, nuevaEnPrimera = false) {
     const encontrado = this.buscarPadre(this.arbol, idArea);
     const hoja = encontrado.padre
       ? encontrado.padre[encontrado.clave]
       : this.arbol;
     const nuevaHoja = crearHoja(hoja.editor);
 
-    let nuevaDivision;
-    if (esquina === 'tl') {
-      nuevaDivision = crearDivision(COLUMNA, nuevaHoja, hoja, ratio);
-    } else if (esquina === 'tr') {
-      nuevaDivision = crearDivision(FILA, hoja, nuevaHoja, ratio);
-    } else if (esquina === 'bl') {
-      nuevaDivision = crearDivision(FILA, nuevaHoja, hoja, ratio);
-    } else {
-      nuevaDivision = crearDivision(COLUMNA, hoja, nuevaHoja, ratio);
-    }
+    const nuevaDivision = nuevaEnPrimera
+      ? crearDivision(direccion, nuevaHoja, hoja, ratio)
+      : crearDivision(direccion, hoja, nuevaHoja, ratio);
 
     if (encontrado.padre) {
       encontrado.padre[encontrado.clave] = nuevaDivision;
@@ -265,6 +284,7 @@ export class GestorAreas {
 
     this.renderizar();
     this.guardar();
+    this.registrarCambio();
   }
 
   // Une dos áreas hermanas conservando uno de los dos lados de la división.
@@ -283,6 +303,7 @@ export class GestorAreas {
 
     this.renderizar();
     this.guardar();
+    this.registrarCambio();
   }
 
   // Cambia el módulo mostrado por un área concreta.
@@ -293,20 +314,191 @@ export class GestorAreas {
     }
     this.renderizar();
     this.guardar();
+    this.registrarCambio();
   }
 
-  // Aplica un workspace (árbol nuevo) y lo persiste.
+  // Aplica un workspace o configuración (árbol nuevo) y lo persiste.
+  // Se clona el árbol para no mutar la fuente original al redimensionar.
   aplicarWorkspace(arbol) {
-    this.arbol = arbol;
+    this.arbol = JSON.parse(JSON.stringify(arbol));
+    this.maximizada = false;
+    this.arbolPrevio = null;
+    this.areaMaximizadaId = null;
+    this.areaEnfocada = null;
     this.renderizar();
     this.guardar();
+    this.registrarCambio();
   }
 
   // Restablece el layout por defecto y lo persiste.
   restablecer() {
     this.arbol = crearLayoutPrincipal();
+    this.maximizada = false;
+    this.arbolPrevio = null;
+    this.areaMaximizadaId = null;
+    this.areaEnfocada = null;
     this.renderizar();
     this.guardar();
+    this.registrarCambio();
+  }
+
+  // --------------------------------------------------------------------------
+  // Historial: deshacer (Ctrl+Z) y rehacer (Ctrl+Shift+Z)
+  // --------------------------------------------------------------------------
+
+  // Registra el estado actual del layout en el historial.
+  registrarCambio() {
+    if (this.maximizada) {
+      return;
+    }
+    const instantanea = this.obtenerArbol();
+    this.historial = this.historial.slice(0, this.indiceHistorial + 1);
+    this.historial.push(instantanea);
+    this.indiceHistorial = this.historial.length - 1;
+  }
+
+  // Aplica un estado del historial sin registrar un nuevo cambio.
+  aplicarEstado(arbol) {
+    this.arbol = JSON.parse(JSON.stringify(arbol));
+    this.maximizada = false;
+    this.arbolPrevio = null;
+    this.areaMaximizadaId = null;
+    this.areaEnfocada = null;
+    this.renderizar();
+    this.guardar();
+  }
+
+  // Deshace la última operación.
+  deshacer() {
+    if (this.indiceHistorial <= 0) {
+      return;
+    }
+    this.indiceHistorial -= 1;
+    this.aplicarEstado(this.historial[this.indiceHistorial]);
+  }
+
+  // Rehace la última operación deshecha.
+  rehacer() {
+    if (this.indiceHistorial >= this.historial.length - 1) {
+      return;
+    }
+    this.indiceHistorial += 1;
+    this.aplicarEstado(this.historial[this.indiceHistorial]);
+  }
+
+  // --------------------------------------------------------------------------
+  // Área enfocada y vista maximizada (Ctrl+Espacio, como en Blender)
+  // --------------------------------------------------------------------------
+
+  // Marca un área como activa (equivalente al área con foco de Blender).
+  enfocarArea(idArea) {
+    this.areaEnfocada = idArea;
+    this.contenedor.querySelectorAll('.area').forEach((area) => {
+      area.classList.toggle('enfocada', area.dataset.areaId === idArea);
+    });
+    // Notifica el cambio de foco para que la interfaz actualice sus controles
+    // (por ejemplo, mostrar/ocultar el botón "Enfocar").
+    this.alCambiar(this.arbol);
+  }
+
+  // Devuelve la primera hoja del árbol (para enfocar algo si no hay foco).
+  primeraHoja(nodo = this.arbol) {
+    if (!nodo) {
+      return null;
+    }
+    if (nodo.tipo === 'hoja') {
+      return nodo;
+    }
+    return this.primeraHoja(nodo.primera) || this.primeraHoja(nodo.segunda);
+  }
+
+  // Alterna entre maximizar el área enfocada y restaurar el layout anterior.
+  alternarMaximizada() {
+    if (this.maximizada) {
+      this.restaurarLayout();
+      return;
+    }
+
+    if (!this.areaEnfocada || !this.buscarNodo(this.arbol, this.areaEnfocada)) {
+      const primera = this.primeraHoja();
+      this.areaEnfocada = primera ? primera.id : null;
+      if (!this.areaEnfocada) {
+        return;
+      }
+    }
+
+    this.maximizarArea();
+  }
+
+  // Expande el área enfocada para que ocupe todo el escenario.
+  maximizarArea() {
+    const hoja = this.buscarNodo(this.arbol, this.areaEnfocada);
+    if (!hoja || hoja.tipo !== 'hoja') {
+      return;
+    }
+
+    this.arbolPrevio = this.obtenerArbol();
+    this.areaMaximizadaId = hoja.id;
+
+    const hojaAmpliada = crearHoja(hoja.editor);
+    this.arbol = hojaAmpliada;
+    this.areaEnfocada = hojaAmpliada.id;
+    this.maximizada = true;
+
+    this.renderizar();
+  }
+
+  // Devuelve el layout al estado anterior a la maximización.
+  restaurarLayout() {
+    if (!this.maximizada || !this.arbolPrevio) {
+      return;
+    }
+
+    this.arbol = JSON.parse(JSON.stringify(this.arbolPrevio));
+    this.areaEnfocada = this.areaMaximizadaId;
+    this.arbolPrevio = null;
+    this.areaMaximizadaId = null;
+    this.maximizada = false;
+
+    this.renderizar();
+  }
+
+  // Atajos de teclado globales del gestor.
+  configurarAtajos() {
+    document.addEventListener('keydown', (evento) => {
+      const objetivo = evento.target;
+      const esCampo =
+        objetivo &&
+        (objetivo.tagName === 'INPUT' ||
+          objetivo.tagName === 'TEXTAREA' ||
+          objetivo.tagName === 'SELECT');
+      const conControl = evento.ctrlKey || evento.metaKey;
+
+      // Los campos de texto conservan sus atajos nativos (deshacer de texto, etc.).
+      if (esCampo) {
+        return;
+      }
+
+      // Ctrl+Espacio: ampliar/restaurar el área enfocada.
+      if (conControl && evento.code === 'Space') {
+        evento.preventDefault();
+        this.alternarMaximizada();
+        return;
+      }
+
+      // Ctrl+Z: deshacer.
+      if (conControl && !evento.shiftKey && evento.code === 'KeyZ') {
+        evento.preventDefault();
+        this.deshacer();
+        return;
+      }
+
+      // Ctrl+Shift+Z: rehacer.
+      if (conControl && evento.shiftKey && evento.code === 'KeyZ') {
+        evento.preventDefault();
+        this.rehacer();
+      }
+    });
   }
 
   // --------------------------------------------------------------------------
@@ -325,6 +517,16 @@ export class GestorAreas {
     area.className = 'area';
     area.dataset.areaId = nodo.id;
     area.style.setProperty('--acento', modulo.color);
+
+    // Resalta el área si es la que tiene el foco (área activa de Blender).
+    if (nodo.id === this.areaEnfocada) {
+      area.classList.add('enfocada');
+    }
+
+    // Un clic en cualquier parte del área la convierte en área activa.
+    area.addEventListener('click', () => {
+      this.enfocarArea(nodo.id);
+    });
 
     area.innerHTML = `
       <header class="area-encabezado">
@@ -377,11 +579,11 @@ export class GestorAreas {
         this.mostrarMenu(rect.left, rect.bottom + 4, [
           {
             texto: 'Dividir · nueva área a la derecha',
-            accion: () => this.dividirArea(nodo.id, 'tr'),
+            accion: () => this.dividirArea(nodo.id, FILA, 0.5, false),
           },
           {
             texto: 'Dividir · nueva área abajo',
-            accion: () => this.dividirArea(nodo.id, 'br'),
+            accion: () => this.dividirArea(nodo.id, COLUMNA, 0.5, false),
           },
         ]);
       });
@@ -499,6 +701,7 @@ export class GestorAreas {
       divisor.removeEventListener('pointerup', alSoltar);
       divisor.removeEventListener('pointercancel', alSoltar);
       this.guardar();
+      this.registrarCambio();
     };
 
     divisor.addEventListener('pointermove', alMover);
@@ -507,8 +710,10 @@ export class GestorAreas {
   }
 
   // Gestiona el arrastre de una esquina con dos comportamientos, igual que Blender:
-  //   - Arrastrar hacia el interior del área: divide el área en dos (la nueva
-  //     ocupa el espacio hasta donde se ha arrastrado).
+  //   - Arrastrar hacia el interior del área: divide el área en dos, mostrando
+  //     una vista previa en tiempo real. La orientación sigue al eje dominante:
+  //     arrastre horizontal => división vertical (lado a lado); arrastre
+  //     vertical => división horizontal (arriba/abajo).
   //   - Arrastrar hacia fuera sobre un área adyacente: fusiona ambas áreas,
   //     conservando el área de origen.
   iniciarArrastreEsquina(evento, idArea, esquina) {
@@ -520,7 +725,7 @@ export class GestorAreas {
     const rect = areaEl.getBoundingClientRect();
 
     let accionPendiente = null; // 'dividir' | 'fusionar' | null
-    let fusionPendiente = null; // { idDivision, lado }
+    let fusionPendiente = null; // { idAreaObjetivo }
 
     const alMover = (movimiento) => {
       const dentro =
@@ -533,10 +738,11 @@ export class GestorAreas {
         // Fuera del área de origen: se intenta fusionar con el área adyacente.
         const fusion = this.resolverFusion(idArea, movimiento);
         this.limpiarPrevias();
+        this.ocultarPreviaDivision();
         if (fusion) {
           accionPendiente = 'fusionar';
           fusionPendiente = fusion;
-          this.marcarPreviaFusion(fusion.idDivision, fusion.lado);
+          this.marcarPreviaFusion(fusion.idAreaObjetivo);
         } else {
           accionPendiente = null;
           fusionPendiente = null;
@@ -544,20 +750,25 @@ export class GestorAreas {
         return;
       }
 
-      // Dentro del área de origen: si se arrastra lo suficiente, se divide.
+      // Dentro del área de origen: división en tiempo real.
       const distanciaX = movimiento.clientX - evento.clientX;
       const distanciaY = movimiento.clientY - evento.clientY;
       this.limpiarPrevias();
+
       if (Math.hypot(distanciaX, distanciaY) > UMBRAL_DIVISION) {
         accionPendiente = 'dividir';
-        areaEl.classList.add('division-previa');
+        const horizontal = Math.abs(distanciaX) > Math.abs(distanciaY);
+        const ratio = this.calcularRatioDivision(horizontal, rect, movimiento);
+        this.mostrarPreviaDivision(idArea, horizontal ? FILA : COLUMNA, ratio);
       } else {
         accionPendiente = null;
+        this.ocultarPreviaDivision();
       }
     };
 
     const finalizar = (aplicar, movimiento) => {
       this.limpiarPrevias();
+      this.ocultarPreviaDivision();
       esquinaEl.removeEventListener('pointermove', alMover);
       esquinaEl.removeEventListener('pointerup', alSoltar);
       esquinaEl.removeEventListener('pointercancel', alCancelar);
@@ -566,10 +777,21 @@ export class GestorAreas {
         return;
       }
       if (accionPendiente === 'fusionar' && fusionPendiente) {
-        this.unirDivision(fusionPendiente.idDivision, fusionPendiente.lado);
+        this.fusionarAreas(idArea, fusionPendiente.idAreaObjetivo);
       } else if (accionPendiente === 'dividir') {
-        const ratio = this.calcularRatioDivision(esquina, rect, movimiento);
-        this.dividirArea(idArea, esquina, ratio);
+        const distanciaX = movimiento.clientX - evento.clientX;
+        const distanciaY = movimiento.clientY - evento.clientY;
+        const horizontal = Math.abs(distanciaX) > Math.abs(distanciaY);
+        const ratio = this.calcularRatioDivision(horizontal, rect, movimiento);
+        const nuevaEnPrimera = horizontal
+          ? esquina === 'tl' || esquina === 'bl'
+          : esquina === 'tl' || esquina === 'tr';
+        this.dividirArea(
+          idArea,
+          horizontal ? FILA : COLUMNA,
+          ratio,
+          nuevaEnPrimera
+        );
       }
     };
 
@@ -581,69 +803,267 @@ export class GestorAreas {
     esquinaEl.addEventListener('pointercancel', alCancelar);
   }
 
-  // Calcula el ratio de una división según hasta dónde se arrastró la esquina.
-  calcularRatioDivision(esquina, rect, movimiento) {
+  // Calcula el ratio (0..1) de la división según la posición del puntero,
+  // tomando como eje dominante el indicado por `horizontal`.
+  calcularRatioDivision(horizontal, rect, movimiento) {
     let ratio;
-    if (esquina === 'tl' || esquina === 'br') {
-      ratio = (movimiento.clientY - rect.top) / rect.height;
-    } else {
+    if (horizontal) {
       ratio = (movimiento.clientX - rect.left) / rect.width;
+    } else {
+      ratio = (movimiento.clientY - rect.top) / rect.height;
     }
     return Math.min(0.9, Math.max(0.1, ratio));
   }
 
   // Determina si, arrastrando la esquina fuera de su área, es posible fusionarla
-  // con el área adyacente. Devuelve { idDivision, lado } o null si no hay fusión.
+  // con un área adyacente, aunque no sean hermanas en el árbol. Devuelve
+  // { idAreaObjetivo } o null si no hay fusión posible.
   resolverFusion(idArea, posicion) {
-    const areaEl = this.contenedor.querySelector(`[data-area-id="${idArea}"]`);
-    if (!areaEl) {
-      return null;
-    }
-    const rect = areaEl.getBoundingClientRect();
-    const encontrado = this.buscarPadre(this.arbol, idArea);
-    if (!encontrado || !encontrado.padre) {
+    const areas = [...this.contenedor.querySelectorAll('.area')];
+    const rectOrigen = this.rectDeArea(idArea);
+    if (!rectOrigen) {
       return null;
     }
 
-    const padre = encontrado.padre;
-    const clave = encontrado.clave;
+    const MARGEN = 14;
+    const candidatos = areas
+      .filter((el) => el.dataset.areaId !== idArea)
+      .map((el) => ({ el, r: el.getBoundingClientRect() }))
+      .filter(
+        ({ r }) =>
+          posicion.clientX >= r.left - MARGEN &&
+          posicion.clientX <= r.right + MARGEN &&
+          posicion.clientY >= r.top - MARGEN &&
+          posicion.clientY <= r.bottom + MARGEN
+      )
+      .sort((a, b) => {
+        const da = Math.hypot(
+          posicion.clientX - (a.r.left + a.r.width / 2),
+          posicion.clientY - (a.r.top + a.r.height / 2)
+        );
+        const db = Math.hypot(
+          posicion.clientX - (b.r.left + b.r.width / 2),
+          posicion.clientY - (b.r.top + b.r.height / 2)
+        );
+        return da - db;
+      });
 
-    if (padre.direccion === FILA) {
-      if (posicion.clientX < rect.left - UMBRAL_FUSION && clave === 'segunda') {
-        return { idDivision: padre.id, lado: 'segunda' };
-      }
-      if (
-        posicion.clientX > rect.right + UMBRAL_FUSION &&
-        clave === 'primera'
-      ) {
-        return { idDivision: padre.id, lado: 'primera' };
-      }
-    } else {
-      if (posicion.clientY < rect.top - UMBRAL_FUSION && clave === 'segunda') {
-        return { idDivision: padre.id, lado: 'segunda' };
-      }
-      if (
-        posicion.clientY > rect.bottom + UMBRAL_FUSION &&
-        clave === 'primera'
-      ) {
-        return { idDivision: padre.id, lado: 'primera' };
+    for (const { el } of candidatos) {
+      const rectObjetivo = this.rectDeArea(el.dataset.areaId);
+      if (rectObjetivo && this.sonAdyacentes(rectOrigen, rectObjetivo)) {
+        return { idAreaObjetivo: el.dataset.areaId };
       }
     }
     return null;
   }
 
-  // Resalta el sub-layout que será absorbido durante una fusión.
-  marcarPreviaFusion(idDivision, ladoMantener) {
-    const division = this.buscarNodo(this.arbol, idDivision);
-    if (!division) {
-      return;
-    }
-    const absorbido =
-      ladoMantener === 'primera' ? division.segunda : division.primera;
-    const elemento = this.elementoDeNodo(absorbido);
+  // Resalta el área que será absorbida durante una fusión.
+  marcarPreviaFusion(idAreaObjetivo) {
+    const elemento = this.contenedor.querySelector(
+      `[data-area-id="${idAreaObjetivo}"]`
+    );
     if (elemento) {
       elemento.classList.add('fusion-previa');
     }
+  }
+
+  // --------------------------------------------------------------------------
+  // Fusión geométrica de áreas (funciona aunque no sean hermanas en el árbol)
+  // --------------------------------------------------------------------------
+
+  // Convierte el árbol en una lista de rectángulos normalizados (x, y, w, h).
+  aplanar(nodo = this.arbol, caja = { x: 0, y: 0, w: 1, h: 1 }, salida = []) {
+    if (!nodo) {
+      return salida;
+    }
+    if (nodo.tipo === 'hoja') {
+      salida.push({
+        id: nodo.id,
+        editor: nodo.editor,
+        x: caja.x,
+        y: caja.y,
+        w: caja.w,
+        h: caja.h,
+      });
+    } else if (nodo.direccion === FILA) {
+      const w1 = caja.w * nodo.ratio;
+      this.aplanar(
+        nodo.primera,
+        { x: caja.x, y: caja.y, w: w1, h: caja.h },
+        salida
+      );
+      this.aplanar(
+        nodo.segunda,
+        { x: caja.x + w1, y: caja.y, w: caja.w - w1, h: caja.h },
+        salida
+      );
+    } else {
+      const h1 = caja.h * nodo.ratio;
+      this.aplanar(
+        nodo.primera,
+        { x: caja.x, y: caja.y, w: caja.w, h: h1 },
+        salida
+      );
+      this.aplanar(
+        nodo.segunda,
+        { x: caja.x, y: caja.y + h1, w: caja.w, h: caja.h - h1 },
+        salida
+      );
+    }
+    return salida;
+  }
+
+  // Rectángulo normalizado de un área concreta.
+  rectDeArea(idArea) {
+    return this.aplanar().find((r) => r.id === idArea) || null;
+  }
+
+  // Indica si dos rectángulos normalizados comparten un borde (son adyacentes).
+  sonAdyacentes(a, b) {
+    const EPS = 1e-6;
+    const compartenBordeVertical =
+      Math.abs(a.x + a.w - b.x) < EPS || Math.abs(b.x + b.w - a.x) < EPS;
+    const compartenBordeHorizontal =
+      Math.abs(a.y + a.h - b.y) < EPS || Math.abs(b.y + b.h - a.y) < EPS;
+
+    const solapeX = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+    const solapeY = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+
+    if (compartenBordeVertical && solapeY > EPS) {
+      return true;
+    }
+    if (compartenBordeHorizontal && solapeX > EPS) {
+      return true;
+    }
+    return false;
+  }
+
+  // Fusiona el área objetivo dentro del área de origen (esta se expande).
+  fusionarAreas(idOrigen, idObjetivo) {
+    const rects = this.aplanar();
+    const origen = rects.find((r) => r.id === idOrigen);
+    const objetivo = rects.find((r) => r.id === idObjetivo);
+    if (!origen || !objetivo) {
+      return;
+    }
+
+    const union = {
+      editor: origen.editor,
+      x: Math.min(origen.x, objetivo.x),
+      y: Math.min(origen.y, objetivo.y),
+      w:
+        Math.max(origen.x + origen.w, objetivo.x + objetivo.w) -
+        Math.min(origen.x, objetivo.x),
+      h:
+        Math.max(origen.y + origen.h, objetivo.y + objetivo.h) -
+        Math.min(origen.y, objetivo.y),
+    };
+
+    const restantes = rects.filter(
+      (r) => r.id !== idOrigen && r.id !== idObjetivo
+    );
+    restantes.push(union);
+
+    this.arbol = this.reconstruirArbolDesdeRects(restantes);
+    this.areaEnfocada = null;
+    this.renderizar();
+    this.guardar();
+    this.registrarCambio();
+  }
+
+  // Reconstruye un árbol binario de divisiones a partir de una partición
+  // guillotina de rectángulos normalizados.
+  reconstruirArbolDesdeRects(rects, caja = { x: 0, y: 0, w: 1, h: 1 }) {
+    const EPS = 1e-6;
+    if (rects.length === 1) {
+      return crearHoja(rects[0].editor);
+    }
+
+    // Corte vertical (separación izquierda/derecha).
+    const xs = [...new Set(rects.map((r) => r.x))].sort((a, b) => a - b);
+    for (const x of xs) {
+      if (x <= caja.x + EPS || x >= caja.x + caja.w - EPS) {
+        continue;
+      }
+      const izq = rects.filter((r) => r.x + r.w <= x + EPS);
+      const der = rects.filter((r) => r.x >= x - EPS);
+      if (
+        izq.length &&
+        der.length &&
+        izq.length + der.length === rects.length
+      ) {
+        return crearDivision(
+          FILA,
+          this.reconstruirArbolDesdeRects(izq, {
+            x: caja.x,
+            y: caja.y,
+            w: x - caja.x,
+            h: caja.h,
+          }),
+          this.reconstruirArbolDesdeRects(der, {
+            x,
+            y: caja.y,
+            w: caja.x + caja.w - x,
+            h: caja.h,
+          }),
+          (x - caja.x) / caja.w
+        );
+      }
+    }
+
+    // Corte horizontal (separación arriba/abajo).
+    const ys = [...new Set(rects.map((r) => r.y))].sort((a, b) => a - b);
+    for (const y of ys) {
+      if (y <= caja.y + EPS || y >= caja.y + caja.h - EPS) {
+        continue;
+      }
+      const arriba = rects.filter((r) => r.y + r.h <= y + EPS);
+      const abajo = rects.filter((r) => r.y >= y - EPS);
+      if (
+        arriba.length &&
+        abajo.length &&
+        arriba.length + abajo.length === rects.length
+      ) {
+        return crearDivision(
+          COLUMNA,
+          this.reconstruirArbolDesdeRects(arriba, {
+            x: caja.x,
+            y: caja.y,
+            w: caja.w,
+            h: y - caja.y,
+          }),
+          this.reconstruirArbolDesdeRects(abajo, {
+            x: caja.x,
+            y,
+            w: caja.w,
+            h: caja.y + caja.h - y,
+          }),
+          (y - caja.y) / caja.h
+        );
+      }
+    }
+
+    // Respaldo (no debería ocurrir con particiones guillotina): apilar.
+    const orden = [...rects].sort((a, b) => a.y - b.y || a.x - b.x);
+    const mitad = Math.floor(orden.length / 2);
+    const primera = orden.slice(0, mitad);
+    const segunda = orden.slice(mitad);
+    return crearDivision(
+      COLUMNA,
+      this.reconstruirArbolDesdeRects(primera, {
+        x: caja.x,
+        y: caja.y,
+        w: caja.w,
+        h: 0.5,
+      }),
+      this.reconstruirArbolDesdeRects(segunda, {
+        x: caja.x,
+        y: caja.y + 0.5,
+        w: caja.w,
+        h: 0.5,
+      }),
+      0.5
+    );
   }
 
   // Devuelve el elemento DOM raíz correspondiente a un nodo del árbol.
@@ -664,6 +1084,42 @@ export class GestorAreas {
       .forEach((elemento) => {
         elemento.classList.remove('division-previa', 'fusion-previa');
       });
+  }
+
+  // Muestra una línea de vista previa de la división sobre el área arrastrada.
+  mostrarPreviaDivision(idArea, direccion, ratio) {
+    const area = this.contenedor.querySelector(`[data-area-id="${idArea}"]`);
+    if (!area) {
+      return;
+    }
+
+    if (!this.previewDivision) {
+      this.previewDivision = document.createElement('div');
+      this.previewDivision.className = 'division-previa-linea';
+    }
+
+    if (this.previewDivision.parentElement !== area) {
+      area.appendChild(this.previewDivision);
+    }
+
+    if (direccion === FILA) {
+      this.previewDivision.style.left = `${ratio * 100}%`;
+      this.previewDivision.style.top = '0';
+      this.previewDivision.style.width = '2px';
+      this.previewDivision.style.height = '100%';
+    } else {
+      this.previewDivision.style.top = `${ratio * 100}%`;
+      this.previewDivision.style.left = '0';
+      this.previewDivision.style.width = '100%';
+      this.previewDivision.style.height = '2px';
+    }
+  }
+
+  // Oculta la línea de vista previa de división.
+  ocultarPreviaDivision() {
+    if (this.previewDivision) {
+      this.previewDivision.remove();
+    }
   }
 
   // --------------------------------------------------------------------------
